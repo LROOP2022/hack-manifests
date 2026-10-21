@@ -1,0 +1,37 @@
+name: Build MinIO image
+
+# Запуск вручную: Actions → Build MinIO image → Run workflow.
+# После первой сборки: Packages → minio → Package settings → Change visibility → Public.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["images/minio/**"]
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  TAG: RELEASE.2025-10-15T17-29-55Z
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: Build
+        run: |
+          IMAGE="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/minio:${TAG}"
+          docker build -t "$IMAGE" images/minio
+      - name: Smoke test
+        run: |
+          IMAGE="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/minio:${TAG}"
+          docker run --rm "$IMAGE" --version
+          docker run --rm --entrypoint mc "$IMAGE" --version
+      - name: Push
+        run: |
+          IMAGE="ghcr.io/$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')/minio:${TAG}"
+          docker push "$IMAGE"

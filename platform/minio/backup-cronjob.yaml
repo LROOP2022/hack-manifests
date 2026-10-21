@@ -19,7 +19,8 @@ spec:
             role: data
           containers:
             - name: minio-mirror
-              image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+              # mc из собственного образа (images/minio): в образе Chainguard нет shell, а скрипт на sh -c
+              image: ghcr.io/lroop2022/minio:RELEASE.2025-10-15T17-29-55Z
               envFrom:
                 - secretRef:
                     name: minio-secrets
