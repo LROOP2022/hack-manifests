@@ -18,3 +18,4 @@ resources:
   - service.yaml
   - ingress.yaml
   - migrate-job.yaml
+  - secrets/api-sealed.yaml
