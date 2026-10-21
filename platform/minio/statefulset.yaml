@@ -23,7 +23,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: minio
-          image: cgr.dev/chainguard/minio:latest
+          image: minio/minio:latest
           imagePullPolicy: IfNotPresent
           args:
             - server
