@@ -1,0 +1,22 @@
+# App of Apps: Argo CD читает каталог applications/ и создаёт Application на каждый файл.
+# Применяется один раз: ansible-playbook playbooks/site.yml --tags root (репозиторий hack-node-setup)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/LROOP2022/hack-manifests.git
+    targetRevision: main
+    path: applications
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      # prune выключен намеренно: удаление файла из applications/ не должно
+      # молча сносить Application (а вместе с ним, возможно, PVC с данными)
+      prune: false
+      selfHeal: true
