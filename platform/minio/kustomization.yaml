@@ -7,3 +7,4 @@ resources:
   - ingress.yaml
   - backup-pvc.yaml
   - backup-cronjob.yaml
+  - secrets/minio-sealed.yaml
