@@ -1,0 +1,20 @@
+# Ingress для UI Argo CD. Сам Argo CD ставится Ansible-ролью, здесь только внешний доступ.
+# prune: false: удаление файла не должно молча сносить доступ к UI.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd-config
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/LROOP2022/hack-manifests.git
+    targetRevision: main
+    path: argocd
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
