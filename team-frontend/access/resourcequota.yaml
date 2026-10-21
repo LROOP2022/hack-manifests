@@ -1,0 +1,14 @@
+# Потолок команды. Значения задаются при make team (QUOTA_*), по умолчанию:
+# 2 CPU / 2Gi по requests. Нода apps: 4 vCPU / 6 GB на всех команд сразу.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: team-quota
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 2Gi
+    limits.cpu: "4"
+    limits.memory: 3Gi
+    pods: "20"
+    persistentvolumeclaims: "0"
