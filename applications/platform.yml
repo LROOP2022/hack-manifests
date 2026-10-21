@@ -1,0 +1,23 @@
+# Общие сервисы: PostgreSQL, Redis, MinIO, MLflow.
+# Намеренно БЕЗ finalizer и с prune: false: удаление Application или файла из репозитория
+# не должно сносить StatefulSet вместе с PVC (урок SPRINT-platform-04 в проде).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/LROOP2022/hack-manifests.git
+    targetRevision: main
+    path: platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

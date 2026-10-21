@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: __NAME__
+  labels:
+    app: __NAME__
+    # по этой метке общий ServiceMonitor собирает /actuator/prometheus
+    metrics: actuator
+spec:
+  type: ClusterIP
+  selector:
+    app: __NAME__
+  ports:
+    - name: http
+      port: 80
+      targetPort: __PORT__

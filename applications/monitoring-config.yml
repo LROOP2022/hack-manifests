@@ -1,0 +1,34 @@
+# Всё, что лежит рядом с чартом: секрет Grafana, Ingress Grafana, ServiceMonitor'ы.
+# ServiceMonitor — CRD из чарта: пока чарт не применён, ресурс не создать,
+# поэтому sync-wave, retry и SkipDryRunOnMissingResource.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring-config
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/LROOP2022/hack-manifests.git
+    targetRevision: main
+    path: monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - SkipDryRunOnMissingResource=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 20s
+        factor: 2
+        maxDuration: 5m

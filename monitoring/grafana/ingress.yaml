@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grafana
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: grafana.hack.week-infra.ru
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                # <имя релиза>-grafana, релиз = Application monitoring
+                name: monitoring-grafana
+                port:
+                  number: 80
+  tls:
+    - hosts:
+        - grafana.hack.week-infra.ru
+      secretName: grafana-tls

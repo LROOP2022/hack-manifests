@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  labels:
+    app: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      nodeSelector:
+        role: data
+      initContainers:
+        # В официальном образе нет (или может не быть) драйвера PostgreSQL и boto3.
+        # Ставим только их (~30 МБ) в общий каталог, версии закреплены.
+        - name: install-drivers
+          image: ghcr.io/mlflow/mlflow:v3.17.2
+          command:
+            - pip
+            - install
+            - --no-cache-dir
+            - --target=/extras
+            - psycopg2-binary==2.9.13
+            - boto3==1.43.116
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: extras
+              mountPath: /extras
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v3.17.2
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -c
+            - >
+              exec mlflow server
+              --host 0.0.0.0
+              --port 5000
+              --workers 2
+              --backend-store-uri "$MLFLOW_BACKEND_STORE_URI"
+              --serve-artifacts
+              --artifacts-destination s3://mlflow
+              --allowed-hosts "$MLFLOW_ALLOWED_HOSTS"
+          env:
+            - name: PYTHONPATH
+              value: /extras
+            # Host-заголовки, которые принимает сервер (защита от DNS rebinding).
+            # Список заменяет значения по умолчанию, поэтому добавлены адреса подов (10.42.*)
+            - name: MLFLOW_ALLOWED_HOSTS
+              value: "mlflow.hack.week-infra.ru,mlflow*,localhost*,10.42.*"
+          envFrom:
+            - secretRef:
+                name: mlflow-secrets
+          ports:
+            - name: http
+              containerPort: 5000
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          # tcpSocket: HTTP-проба пришла бы с Host = IP пода
+          readinessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          volumeMounts:
+            - name: extras
+              mountPath: /extras
+              readOnly: true
+      volumes:
+        - name: extras
+          emptyDir: {}

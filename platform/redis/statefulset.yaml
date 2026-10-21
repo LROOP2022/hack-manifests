@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis
+  labels:
+    app: redis
+spec:
+  serviceName: redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      nodeSelector:
+        role: data
+      containers:
+        - name: redis
+          image: redis:7.4.5-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 6379
+              name: redis
+          envFrom:
+            - secretRef:
+                name: redis-secrets
+          command:
+            - sh
+            - -c
+            - >
+              exec redis-server
+              --appendonly yes
+              --appendfsync everysec
+              --dir /data
+              --maxmemory 192mb
+              --maxmemory-policy allkeys-lru
+              --requirepass "$REDIS_PASSWORD"
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 25m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG
+            initialDelaySeconds: 15
+            periodSeconds: 20
+  volumeClaimTemplates:
+    - metadata:
+        name: redis-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 1Gi

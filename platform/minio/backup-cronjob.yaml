@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: minio-backup
+spec:
+  # каждые 6 часов (UTC). Инкрементальная копия в один каталог /backup/minio,
+  # а не полные снимки: иначе N копий не поместятся на диск ноды.
+  schedule: "20 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            role: data
+          containers:
+            - name: minio-mirror
+              image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+              envFrom:
+                - secretRef:
+                    name: minio-secrets
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  export MC_CONFIG_DIR=/tmp/mc
+                  mc alias set src http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+                  mkdir -p /backup/minio
+                  mc mirror --overwrite --remove src /backup/minio
+                  date -u +%FT%TZ > /backup/last-success.txt
+                  echo "Mirror done: $(du -sh /backup/minio)"
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: minio-backup
