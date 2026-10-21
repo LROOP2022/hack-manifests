@@ -3,7 +3,18 @@ kind: Kustomization
 images:
   - name: ghcr.io/lroop2022/api
     newTag: sha-df6f757d4d3837b8d3d6ee327765777e74a5eae0
+# SealedSecret должен появиться раньше migrate-Job (волна -1), иначе на первом sync
+# Job ждёт Secret, а Secret ждёт окончания Job. Патч безвреден, пока секрета ещё нет.
+patches:
+  - target:
+      kind: SealedSecret
+      name: api-secrets
+    patch: |-
+      - op: add
+        path: /metadata/annotations/argocd.argoproj.io~1sync-wave
+        value: "-2"
 resources:
   - deployment.yaml
   - service.yaml
   - ingress.yaml
+  - migrate-job.yaml

@@ -1,0 +1,54 @@
+# РУЧНОЙ запуск админом, Argo CD этот каталог не читает (его нет в team-backend/kustomization.yaml).
+# Импорт ~354 тыс. векторов признаков в PostgreSQL одной транзакцией: TRUNCATE + COPY.
+# Пока идёт импорт, запросы /predict/by-id могут ждать блокировку таблицы.
+# Запуск (после того как api-migrate отработал):
+#   TAG=$(awk '/newTag:/{print $2}' team-backend/api/kustomization.yaml)
+#   sed "s/__TAG__/$TAG/" team-backend/ops/import-lookup-job.yaml | kubectl apply -f -
+#   kubectl -n team-backend logs -f job/api-lookup-import
+# Повторный запуск: kubectl -n team-backend delete job api-lookup-import, затем снова apply.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: api-lookup-import
+  namespace: team-backend
+spec:
+  backoffLimit: 1
+  activeDeadlineSeconds: 7200
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: api-lookup-import
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        role: apps
+      containers:
+        - name: import
+          image: ghcr.io/lroop2022/api:__TAG__
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "scripts.import_lookup"]
+          env:
+            - name: DATA_ZIP_URL
+              value: https://s3.hack.week-infra.ru/backend/Hackathon-task.zip
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: DATABASE_URL
+            - name: DATA_ZIP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: api-secrets
+                  key: DATA_ZIP_PASSWORD
+          # Лимит держим ниже квоты namespace (limits.memory 3Gi) с запасом на работающий api (768Mi).
+          # Импорт читает CSV порциями по 1000 строк, пик памяти я не измерял: смотрите OOMKilled.
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+              ephemeral-storage: 2Gi
+            limits:
+              cpu: "1"
+              memory: 1536Mi
+              ephemeral-storage: 7Gi
