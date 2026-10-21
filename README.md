@@ -11,6 +11,7 @@ applications/               по одному Application на проект
   monitoring.yml            Helm kube-prometheus-stack (версия закреплена)
   monitoring-config.yml     monitoring/ → Ingress Grafana, ServiceMonitor'ы, секрет Grafana
 platform/                   postgresql · redis · minio · mlflow (все на node-2, role=data)
+images/minio/               Dockerfile образа MinIO + mc (сборка: .github/workflows/build-minio.yml)
 monitoring/                 grafana/ · ingress-nginx · spring-servicemonitor
 templates/  scripts/        шаблоны и логика для make team / scaffold / seal / db / kubeconfig
 Makefile                    точки входа (make help)
@@ -58,7 +59,8 @@ git add . && git commit && git push
 |---|---|
 | `postgres:17.6-alpine` | platform/postgresql |
 | `redis:7.4.5-alpine` | platform/redis |
-| `minio/minio:RELEASE.2025-04-22T22-12-26Z`, `minio/mc:RELEASE.2025-04-16T18-13-26Z` | platform/minio, Makefile |
+| `cgr.dev/chainguard/minio:latest` (сервер, незакреплён: на бесплатном плане есть только latest) | platform/minio |
+| `ghcr.io/lroop2022/minio:RELEASE.2025-10-15T17-29-55Z` (только `mc`, собирается из `images/minio`, пакет Public) | platform/minio (backup), Makefile |
 | `ghcr.io/mlflow/mlflow:v3.17.2` | platform/mlflow |
 | `busybox:1.36` | как в проде |
 
@@ -68,7 +70,8 @@ git add . && git commit && git push
 
 - **MLflow**: образ может не содержать драйвер PostgreSQL и `boto3`, поэтому их ставит initContainer (нужен выход в интернет с node-2). `--allowed-hosts` заменяет значения по умолчанию, поэтому в списке есть `10.42.*` (CIDR подов k3s по умолчанию) и пробы сделаны TCP.
 - **ingress-nginx метрики**: Service указывает на порт 10254 числом; ингресс-контроллер отдаёт метрики по умолчанию, патчить его Deployment не нужно (в проде этот патч, скорее всего, ничего не делал).
-- **MinIO**: консоль выставлена наружу (`minio.hack.week-infra.ru`), S3 API только внутри кластера. Закреплён релиз апреля 2025: в нём есть известные уязвимости, для 3 дней закрытого стенда это принято.
+- **MinIO**: консоль выставлена наружу (`minio.hack.week-infra.ru`), S3 API только внутри кластера. Официальные образы `minio/*` удалены (Docker Hub, quay.io), community-версия заархивирована. Сервер берём из `cgr.dev/chainguard/minio:latest` (под uid 65532, `fsGroup` задан в StatefulSet). Тег `latest` нарушает `conventions.md`: записать как техдолг; после первого успешного запуска закрепить образ по digest (`kubectl -n platform get pod minio-0 -o jsonpath='{.status.containerStatuses[0].imageID}'`). В консоли нет админ-разделов: пользователи и политики через `mc` (`make db`).
+- **Образ `mc`** (`make db`, бэкап) нужен с shell, поэтому собирается из `images/minio` (Actions → *Build MinIO image*, затем Packages → `minio` → Change visibility → **Public**).
 - **Диск**: `local-path` не ограничивает размер PVC. Сумма запросов на node-2 около 43 ГБ при 70 ГБ диска; следите за `df -h`.
 - **Бэкапы** каждые 6 часов лежат на той же ноде, что и данные. Конец каждого дня: выгрузить `/var/lib/rancher/k3s/storage/*backup*` с node-2.
 - **Redis** общий, без изоляции между командами (префикс ключей по договорённости).
