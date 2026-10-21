@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+spec:
+  # каждые 6 часов (UTC), хранятся последние 12 снимков
+  schedule: "10 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          nodeSelector:
+            role: data
+          containers:
+            - name: redis-dump
+              image: redis:7.4.5-alpine
+              envFrom:
+                - secretRef:
+                    name: redis-secrets
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  cpu: 250m
+                  memory: 128Mi
+              command:
+                - sh
+                - -c
+                - |
+                  set -e
+                  export REDISCLI_AUTH="$REDIS_PASSWORD"
+                  STAMP=$(date +%Y-%m-%d_%H-%M-%S)
+                  FILE="/backup/redis-${STAMP}.rdb"
+                  echo "Dumping RDB snapshot to ${FILE}"
+                  redis-cli -h redis --rdb "${FILE}"
+                  gzip "${FILE}"
+                  echo "Dump done: $(ls -lh ${FILE}.gz)"
+                  cd /backup
+                  ls -1t redis-*.rdb.gz | tail -n +13 | xargs -r rm -f
+                  echo "Remaining backups:"
+                  ls -lh /backup
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: redis-backup

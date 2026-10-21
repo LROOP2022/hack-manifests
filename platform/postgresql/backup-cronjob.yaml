@@ -1,0 +1,62 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup
+spec:
+  # каждые 6 часов (время UTC), хранятся последние 12 дампов
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          # PVC с бэкапами привязан к ноде data, job должен идти туда же
+          nodeSelector:
+            role: data
+          containers:
+            - name: pg-dump
+              image: postgres:17.6-alpine
+              envFrom:
+                - secretRef:
+                    name: postgresql-secrets
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -e
+                  set -o pipefail
+                  export PGPASSWORD="$POSTGRES_PASSWORD"
+                  STAMP=$(date +%Y-%m-%d_%H-%M-%S)
+                  FILE="/backup/postgresql-${STAMP}.sql.gz"
+                  echo "Dumping to ${FILE}"
+                  pg_dumpall -h postgresql -U "$POSTGRES_USER" | gzip > "${FILE}"
+                  # Пустой дамп = ошибка аутентификации или соединения: job должен упасть явно
+                  SIZE=$(stat -c%s "${FILE}")
+                  if [ "$SIZE" -lt 200 ]; then
+                    echo "ERROR: dump подозрительно маленький (${SIZE} bytes)"
+                    rm -f "${FILE}"
+                    exit 1
+                  fi
+                  echo "Dump done: $(ls -lh ${FILE})"
+                  cd /backup
+                  ls -1t postgresql-*.sql.gz | tail -n +13 | xargs -r rm -f
+                  echo "Remaining backups:"
+                  ls -lh /backup
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: postgresql-backup

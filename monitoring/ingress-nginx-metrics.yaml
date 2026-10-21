@@ -1,0 +1,20 @@
+# ingress-nginx ставится Ansible и в GitOps не входит, поэтому патчить его Deployment отсюда нельзя.
+# Контроллер и так отдаёт метрики на 10254, поэтому в Service порт указан числом.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingress-nginx-controller-metrics
+  namespace: ingress-nginx
+  labels:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/component: controller
+spec:
+  selector:
+    app.kubernetes.io/name: ingress-nginx
+    app.kubernetes.io/instance: ingress-nginx
+    app.kubernetes.io/component: controller
+  ports:
+    - name: metrics
+      port: 10254
+      targetPort: 10254

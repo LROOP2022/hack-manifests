@@ -1,0 +1,87 @@
+# kube-prometheus-stack. Имя Application = имя релиза Helm (monitoring):
+# от него зависят имена сервисов (monitoring-grafana) и метка release: monitoring.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "92.11.0"
+    helm:
+      values: |
+        grafana:
+          admin:
+            existingSecret: grafana-secrets
+            userKey: admin-user
+            passwordKey: admin-password
+          ingress:
+            enabled: false      # Ingress лежит в monitoring/grafana-ingress.yaml
+          service:
+            type: ClusterIP
+          nodeSelector:
+            role: platform
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 300m, memory: 256Mi}
+
+        prometheus:
+          prometheusSpec:
+            retention: 3d
+            retentionSize: 4GB
+            # Подхватывать ServiceMonitor/PodMonitor из любых namespace без метки release
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+            nodeSelector:
+              role: platform
+            resources:
+              requests: {cpu: 200m, memory: 512Mi}
+              limits: {cpu: "1", memory: 1Gi}
+
+        prometheusOperator:
+          nodeSelector:
+            kubernetes.io/os: linux
+            role: platform
+          admissionWebhooks:
+            patch:
+              nodeSelector:
+                kubernetes.io/os: linux
+                role: platform
+
+        kube-state-metrics:
+          nodeSelector:
+            role: platform
+
+        alertmanager:
+          enabled: false
+
+        nodeExporter:
+          enabled: true
+
+        # В k3s эти компоненты встроены в один процесс и не отдают метрики
+        # по стандартным адресам: цели были бы вечно Down
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

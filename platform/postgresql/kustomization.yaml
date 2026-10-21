@@ -1,0 +1,9 @@
+# Секрет postgresql-secrets добавляется командой: make seal PARENT=platform RESOURCE=postgresql
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - statefulset.yaml
+  - service.yaml
+  - backup-pvc.yaml
+  - backup-cronjob.yaml
+  - secrets/postgresql-sealed.yaml

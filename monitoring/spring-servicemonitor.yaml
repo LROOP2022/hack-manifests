@@ -1,0 +1,19 @@
+# Один ServiceMonitor на все команды: собирает метрики со всех Service с меткой
+# metrics: actuator в любом namespace. Метку и порт `http` ставит `make scaffold TYPE=backend`.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: spring-actuator
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    any: true
+  selector:
+    matchLabels:
+      metrics: actuator
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 30s
