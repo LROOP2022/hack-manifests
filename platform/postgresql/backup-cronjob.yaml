@@ -40,7 +40,9 @@ spec:
                   STAMP=$(date +%Y-%m-%d_%H-%M-%S)
                   FILE="/backup/postgresql-${STAMP}.sql.gz"
                   echo "Dumping to ${FILE}"
-                  pg_dumpall -h postgresql -U "$POSTGRES_USER" | gzip > "${FILE}"
+                  # БД backend (lookup ~2 ГБ) не бэкапим: она восстанавливается миграцией и импортом.
+                  # Роль backend попадает в дамп, базу нужно создать заново (см. runbook).
+                  pg_dumpall -h postgresql -U "$POSTGRES_USER" --exclude-database=backend | gzip > "${FILE}"
                   # Пустой дамп = ошибка аутентификации или соединения: job должен упасть явно
                   SIZE=$(stat -c%s "${FILE}")
                   if [ "$SIZE" -lt 200 ]; then
