@@ -5,7 +5,10 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     cert-manager.io/cluster-issuer: "letsencrypt-prod"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    # под лимит CSV в приложении (MAX_CSV_BYTES, по умолчанию 256 МиБ)
+    nginx.ingress.kubernetes.io/proxy-body-size: "256m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
 spec:
   ingressClassName: nginx
   rules:
