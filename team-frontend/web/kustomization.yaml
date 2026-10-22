@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
   - name: ghcr.io/lroop2022/web
-    newTag: sha-742202dbe23759a8d88644fd274886997dc37a56
+    newTag: sha-3001843112eaaed9ecf3a0de1f7a0ffac53a72dc
 resources:
   - deployment.yaml
   - service.yaml
