@@ -4,6 +4,10 @@ metadata:
   name: api
 spec:
   replicas: 1
+  # Recreate: модели грузятся в память целиком, а квота namespace (limits.memory 3Gi)
+  # не вместит два пода сразу. С RollingUpdate новый под завис бы в Pending.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: api
@@ -18,19 +22,24 @@ spec:
         - name: api
           image: ghcr.io/lroop2022/api
           imagePullPolicy: IfNotPresent
-          envFrom:
-            - secretRef:
-                name: api-secrets
+          # Секретов и базы больше нет: модели и справочники (SQLite) лежат в образе
+          # (/models/artifacts, ML_ARTIFACTS_DIR задан в Dockerfile).
+          # Необязательные переменные: MODEL_THREADS, MAX_CSV_BYTES, CORS_ORIGINS, VERIFY_ARTIFACTS_ON_START.
+          env:
+            - name: MODEL_THREADS
+              value: "2"
           ports:
             - name: http
               containerPort: 8080
+          # Значения стартовые, пик памяти не измерен: после запуска смотрите
+          # `kubectl -n team-backend top pod` и OOMKilled, затем поправьте.
           resources:
             requests:
-              cpu: 100m
-              memory: 384Mi
+              cpu: 250m
+              memory: 1Gi
             limits:
-              cpu: "1"
-              memory: 768Mi
+              cpu: "2"
+              memory: 2Gi
           startupProbe:
             httpGet:
               path: /actuator/health/readiness
